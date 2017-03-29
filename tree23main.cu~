@@ -1,0 +1,96 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include "tree23_struct.cu"
+#include "tree23_struct_d.cu"
+#include "timerc.h"
+#include <iostream>
+
+const int treeSize = 10;
+const int insertSize = 3;
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+  if (code != cudaSuccess)
+	{
+	  fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+	  if (abort) exit(code);
+	}
+}
+
+__global__ void gpuInsert( Node *t, int *insert, Node *out ){
+
+  int tid = threadIdx.x;
+  int bid = blockIdx.x;
+
+  if(bid == 0){
+	if(tid == 0)
+	  insert_d(t, insert[0]);
+	if(tid == 1)
+	  insert_d(t, insert[1]);
+	if(tid == 2)
+	  insert_d(t, insert[2]);
+  }
+
+  print_d(t);
+}
+
+
+int main(){
+
+  //CREATE INITAL TREES
+  Node *tCPU = createRoot();
+  Node *tGPU = createRoot();
+  //Node *tGPUnodes[treeSize+insertSize];
+  for(int i = 1; i < treeSize; i++){
+	insert(tCPU,2*i);
+	insert(tGPU,2*i+1);
+  }
+
+
+  //INSERT SET
+  int *insertSet = (int *) malloc(insertSize*sizeof(int));
+  for(int i = 0; i < insertSize; i++){
+	insertSet[i] = 2*i;
+  }
+
+  //TIMING VARIABLES
+  float cputime;
+  float gputime;
+
+  //CPU INSERT
+  cstart();
+  for(int i = 0; i < insertSize; i++){
+	insert(tCPU,insertSet[i]);
+  }
+  cend(&cputime);
+  printf("%d Items, %d Size 2-3 Tree, CPU time: %f\n", insertSize, treeSize, cputime/1000); fflush(stdout);
+
+
+  //GPU SETUP
+  int num_blocks = 1;
+  int threads_per_block = 1;
+
+  Node *d_t23;
+  Node *d_t23_out;
+  int *d_insert;
+
+  
+  cudaMalloc( (void**)&d_t23, (treeSize+insertSize)*sizeof(Node));
+  cudaMalloc( (void**)&d_t23_out, (insertSize+treeSize)*sizeof(Node));
+  cudaMalloc( (void**)&d_insert, (insertSize)*sizeof(int));
+
+  cudaMemcpy(  d_t23 , tGPU , (treeSize)*sizeof(Node) , cudaMemcpyHostToDevice );
+  cudaMemcpy(  d_insert , insertSet , (insertSize)*sizeof(int) , cudaMemcpyHostToDevice );
+
+  gpuInsert<<< num_blocks, threads_per_block >>>( d_t23, d_insert, d_t23_out );
+
+  printf("end\n");
+  Node *t23_out = (Node *) malloc((insertSize+treeSize)*sizeof(Node));
+  cudaMemcpy( (void*) t23_out , (void*) d_t23, (treeSize+insertSize)*sizeof(Node) , cudaMemcpyDeviceToHost );
+
+  print(t23_out);
+  
+  return 0;
+
+}
