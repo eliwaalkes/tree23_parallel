@@ -1,0 +1,398 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+int numNodes = 0;
+int offsetTotal = 0;
+int root = 0;
+
+typedef struct Node{
+  int index;
+  int key0;
+  int key1;
+  int parent;
+  int child0;
+  int child1;
+  int child2;
+} Node;
+
+int createNode_arr(int *arr, int offset, int data)
+{
+  arr[offset]   = offset;
+  arr[offset+1] = data;
+  arr[offset+2] = -1;
+  arr[offset+3] = -2;
+  arr[offset+4] = -2;
+  arr[offset+5] = -2;
+
+  numNodes++;
+  offsetTotal += 7;
+  /*
+  n->key0=offset+1;
+  n->key1=offset+2;
+  n->parent=offset+3;
+  n->child0=offset+4;
+  n->child1=offset+5;
+  n->child2=offset+6;
+  */
+
+  return offset;
+}
+
+
+int getKey0 (int *arr, int index){
+  return arr[ index + 1 ];
+}
+int getKey1 (int *arr, int index){
+  return arr[ index + 2 ];
+}
+int getParent (int *arr, int index){
+  return arr[ index + 3 ];
+}
+int getChild0 (int *arr, int index){
+  return arr[ index + 4 ];
+}
+int getChild1 (int *arr, int index){
+  return arr[ index + 5 ];
+}
+int getChild2 (int *arr, int index){
+  return arr[ index + 6 ];
+}
+int key0Index(int index){
+  return index+1;
+}
+int key1Index(int index){
+  return index+2;
+}
+int parentIndex(int index){
+  return index+3;
+}
+int child0Index(int index){
+  return index+4;
+}
+int child1Index(int index){
+  return index+5;
+}
+int child2Index(int index){
+  return index+6;
+}
+
+// Check if node is a leaf
+bool isLeaf_arr(int *arr, int index)
+{
+  printf("isLeaf\n");
+  return (getChild0(arr,index) == -2);
+}
+
+int getSmallest_arr(int *arr, int index)
+{
+  printf("getSmallest\n");
+  while (!isLeaf_arr(arr, index)) index += 7;
+  return getChild0(arr,index);
+}
+
+// Get which sibling the node is
+int sibNumber_arr(int *arr, int index)
+{
+  printf("sibNum\n");
+  int parent = getParent(arr, index);
+  int child0 = getChild0(arr, parent);
+  for (int i = 0; i < 3; ++i) {
+	int check = arr[child0+i]; //arr[index+3] is index of parent, +4 gives index of first child, i iterates through 2nd/3rd children indicies 
+	if (index == check) return i;
+  }
+  return -1;
+}
+
+
+// Update the parent nods efor the smallest child value
+void updateParentSmallest_arr(int* arr, int index, int data)
+{
+  printf("updateSmallestParent \n");
+  int sibs = sibNumber_arr(arr, index);
+  int p1 = getParent(arr, index);
+  if(sibs == 0){
+	int p2 = getParent(arr, p1);
+	if ( p2 != -2 ) updateParentSmallest_arr(arr, p1, data);
+	return; 
+  }
+  if(sibs == 1){
+	int k0 = key0Index(p1);
+	arr[k0] = data;
+	return;
+  }
+  if(sibs == 2){
+	int k1 = key1Index(p1);
+	arr[k1] = data;
+	return;
+  }
+}
+
+void insert_help_arr(int *arr, int index, int newChild, int newSmallest);
+
+// Insert into a node with 1 child
+void insert1Siblings_arr(int* arr, int index, int newChild, int newSmallest)
+{
+  printf("1sib, index: %d, newchilde: %d, newSmallest: %d\n", index, newChild, newSmallest);
+  int newKey = getKey0(arr, newChild);
+  arr[parentIndex(newChild)] = index; //newChild->parent = node;
+
+  if (newKey < getKey0(arr, getChild0(arr, index))) { //node->child[0]->key[0]
+	// newNode is inserted as first child of root
+	arr[child1Index(index)] = getChild0(arr,index); //node->child[1] = node->child[0];
+	arr[child0Index(index)] = newChild; //node->child[0] = newChild;
+	arr[key0Index(index)] = getSmallest_arr(arr, getChild1(arr, index)); //node->key[0] = getSmallest_d(node->child[1]);
+  }
+  else {
+	// newNode is iserted as second child of root
+	arr[child1Index(index)] = newChild; //node->child[1] = newChild;
+	arr[key0Index(index)] = newSmallest; //node->key[0] = newSmallest;
+  }
+}
+
+
+// Insert into a node with 2 children
+void insert2Siblings_arr(int* arr, int index, int newChild, int newSmallest)
+{
+  printf("2sibs\n");
+  int newKey = getKey0(arr, newChild); //newChild->key[0];
+  arr[parentIndex(newChild)] = index; //newChild->parent = node;
+
+  if (newKey < getKey0(arr, getChild0(arr, index)) ) { //node->child[0]->key[0]) {
+    arr[child2Index(index)] = getChild1(arr,index);  //node->child[2] = node->child[1];
+	arr[child1Index(index)] = getChild0(arr,index); //node->child[1] = node->child[0];
+	arr[child0Index(index)] = newChild; //node->child[0] = newChild;
+
+	arr[key1Index(index)] = getKey0(arr, index); //node->key[1] = node->key[0];
+	arr[key0Index(index)] = getSmallest_arr(arr, getChild1(arr, index));  //node->key[0] = getSmallest_d(node->child[1]);
+	updateParentSmallest_arr(arr, index, newSmallest); //updateParentSmallest_d(node, newSmallest);
+  }
+  else if ( newKey < getKey0(arr, getChild1(arr, index)) ) {//(newKey < node->child[1]->key[0]) {
+	arr[child2Index(index)] = getChild1(arr, index); //node->child[2] = node->child[1];
+    arr[child1Index(index)] = newChild;  //node->child[1] = newChild;
+
+	arr[key1Index(index)] = getKey0(arr, index); //node->key[1] = node->key[0];
+	arr[key0Index(index)] = newSmallest; //node->key[0] = newSmallest;
+  }
+  else {
+	arr[child2Index(index)] = newChild; //node->child[2] = newChild;
+	arr[key1Index(index)] = newSmallest; //node->key[1] = newSmallest;
+  }
+}
+
+
+// Insert into a node with 3 children
+void insert3Siblings_arr(int *arr, int index, int newChild, int newSmallest) {
+  printf("3sibs\n");
+  int newKey = getKey0(arr, newChild); //int newKey = newChild->key[0];
+  int splitSmallest = -1;
+  int splitNode = createNode_arr(arr, offsetTotal, -1);
+  arr[parentIndex(splitNode)] = getParent(arr, index); //splitNode->parent = node->parent;
+
+  if (newKey < getKey0(arr, getChild0(arr, index)) || newKey < getKey0(arr, getChild1(arr,index)) ) { //(newKey < node->child[0]->key[0] || newKey < node->child[1]->key[0]) {
+	// newChild is inserted in current node
+	splitSmallest = getKey0(arr,index); //splitSmallest = node->key[0];
+	arr[child0Index(splitNode)] = getChild1(arr, index); //splitNode->child[0] = node->child[1];
+	arr[child1Index(splitNode)] = getChild2(arr, index); //splitNode->child[1] = node->child[2];
+	arr[key0Index(splitNode)] = getKey1(arr, index); //splitNode->key[0] = node->key[1];
+
+	arr[parentIndex(getChild1(arr, index))] = splitNode; //node->child[1]->parent = splitNode;
+	arr[parentIndex(getChild2(arr, index))] = splitNode; //node->child[2]->parent = splitNode;
+	arr[parentIndex(newChild)] = index; //newChild->parent = node;
+
+	if (newKey < getKey0(arr, getChild0(arr, index))) {//(newKey < node->child[0]->key[0]) {
+	  // newChild is inserted as first child
+	  arr[child1Index(index)] = getChild0(arr, index); //node->child[1] = node->child[0];
+	  arr[child0Index(index)] = newChild; //node->child[0] = newChild;
+
+	  arr[key0Index(index)] = getSmallest_arr(arr, getChild1(arr, index)); //node->key[0] = getSmallest_d(node->child[1]);
+	  updateParentSmallest_arr(arr, index, newSmallest); //updateParentSmallest_d(node, newSmallest);
+	}
+	else {
+	  // newChild is inserted as second child
+	  arr[child1Index(index)] = newChild; //node->child[1] = newChild;
+	  arr[key0Index(index)] = newSmallest; //node->key[0] = newSmallest;
+	}
+  }
+  else {
+	// newChild is inserted in split node
+	arr[parentIndex(getChild2(arr, index))] = splitNode; //node->child[2]->parent = splitNode;
+	arr[parentIndex(newChild)] = splitNode; //newChild->parent = splitNode;
+
+	if (newKey < getKey0(arr, getChild2(arr, index)) ) { //(newKey < node->child[2]->key[0]) {
+	  // newChild is inserted as first child
+	  splitSmallest = newSmallest;
+	  arr[child0Index(splitNode)] = newChild; //splitNode->child[0] = newChild;
+	  arr[child1Index(splitNode)] = getChild2(arr, index); //splitNode->child[1] = node->child[2];
+	  arr[key0Index(splitNode)] = getKey1(arr, index); //splitNode->key[0] = node->key[1];
+	}
+	else {
+	  // newChild is inserted as second child
+	  splitSmallest = getKey1(arr, index); //splitSmallest = node->key[1];
+	  arr[child0Index(splitNode)] = getChild2(arr, index); //splitNode->child[0] = node->child[2];
+	  arr[child1Index(splitNode)] = newChild; //splitNode->child[1] = newChild;
+	  arr[key0Index(splitNode)] = newSmallest; //splitNode->key[0] = newSmallest;
+	}
+  }
+
+  arr[child2Index(index)] = -2; //node->child[2] = NULL;
+  arr[key1Index(index)] = -1; //node->key[1] = -1;
+
+  if (getParent(arr, getParent(arr, index)) == -2) { //(node->parent->parent == NULL) {
+	// At root, so new root needs to be created
+	int newNode = createNode_arr(arr, offsetTotal, -1);
+	//printf("new root: %d", newNode);
+	//root = newNode;
+	arr[child0Index(getParent(arr, index))] = newNode; //node->parent->child[0] = newNode;
+	arr[parentIndex(newNode)] = getParent(arr, index); //newNode->parent = node->parent;
+	arr[child0Index(newNode)] = index; //newNode->child[0] = node;
+	arr[parentIndex(index)] = newNode; //node->parent = newNode;
+  }
+  
+  insert_help_arr(arr, getParent(arr, index), splitNode, splitSmallest); //insert_help_d(node->parent, splitNode, splitSmallest);
+}
+
+
+int findSpot_arr(int *arr, int index, int data) {
+  if (arr[index] == -2) return -2;
+
+  printf("findSpot index: %d, data: %d", index, data);
+  int ind = index;
+  int count = 0;
+  while (!isLeaf_arr(arr,ind)) {
+	printf("findSpot ind: %d", ind);
+	count++;
+	if(count == 10)
+	  break;
+	if (getKey0(arr, ind) == data || getKey1(arr, ind) == data) //(node->key[0] == data || node->key[1] == data)
+	  return -2;
+	if (getKey0(arr,ind) == -1 || data < getKey0(arr,ind)) //(node->key[0] == -1 || data < node->key[0])
+	  ind = getChild0(arr, ind);
+	  //arr[index] = getChild0(arr, index); //node = node->child[0];
+	else if (getKey1(arr,ind) == -1 || data < getKey1(arr,ind)) //(node->key[1] == -1 || data < node->key[1])
+	  ind = getChild1(arr,ind); //node = node->child[1];
+	else
+	  ind = getChild2(arr,ind); //node = node->child[2];
+  }
+
+  if (getKey0(arr, ind) == data)//(node->key[0] == data)
+	return -2;
+
+  printf("spot found: %d\n", getParent(arr,ind));
+  return getParent(arr, ind); //node->parent;
+}
+
+// Insertion
+void insert_help_arr(int *arr, int index, int newChild, int newSmallest)
+{
+  if (getChild1(arr,index) == -2) insert1Siblings_arr(arr, index, newChild, newSmallest); //(node->child[1] == NULL) insert1Siblings_d(node, newChild, newSmallest);
+  else if (getChild2(arr, index) == -2) insert2Siblings_arr(arr, index, newChild, newSmallest); //else if (node->child[2] == NULL) insert2Siblings_d(node, newChild, newSmallest);
+  else insert3Siblings_arr(arr, index, newChild, newSmallest);
+}
+
+
+void insert_arr(int *arr, int index, int data)
+{
+  int newNode = createNode_arr(arr, offsetTotal, data);
+  int spot = getChild0(arr, index); //node->child[0];
+
+  if (getChild0(arr,spot) == -2) { //spot->child[0] == NULL) {
+	// First insertion
+	arr[parentIndex(newNode)] = spot;//newNode->parent = spot;
+	arr[child0Index(spot)] = newNode;//spot->child[0] = newNode;
+  }
+  else {
+	spot = findSpot_arr(arr, spot, data);
+	if (spot == -2) return;
+	insert_help_arr(arr, spot, newNode, data);
+  }
+
+  return;
+}
+
+
+void createRoot_arr(int* arr)
+{
+  int n = createNode_arr(arr, offsetTotal, -1); //Node *n = new Node;
+  int n1 = createNode_arr(arr, offsetTotal, -1); //Node *n1 = createNode_d();
+  arr[parentIndex(n1)] = n; //n1->parent = n;
+  arr[child0Index(n)] = n1;
+}
+
+
+/*
+void print_d(Node *node, int tabs = 0)
+{
+  for (int i = 0; i < tabs; ++i) {
+	printf("\t");
+  }
+
+  if (node == NULL) {
+	printf("`--> NULL\n");
+	return;
+  }
+
+  printf("`--> : ( %d, %d )\n ", node->key[0], node->key[1]);
+
+  if (!isLeaf_d(node)) {
+	++tabs;
+	print_d(node->child[0], tabs);
+	print_d(node->child[1], tabs);
+	print_d(node->child[2], tabs);
+  }
+}
+*/
+
+void print_tree_nice(int *tree, int start, int tabs = 0){
+  for (int i = 0; i < tabs; ++i)
+	printf("\t");
+  printf("Key0: %d, Key1: %d\n", getKey0(tree, start), getKey1(tree, start));
+  printf("\t Child0:\n");
+  if(getChild0(tree, start) != -2)
+	print_tree_nice(tree, getChild0(tree, start), tabs++);
+  printf("\t Child1:\n");
+  if(getChild1(tree, start) != -2)
+	print_tree_nice(tree, getChild1(tree, start), tabs++);
+  printf("\t Child2:\n");
+  if(getChild2(tree, start) != -2)
+	print_tree_nice(tree, getChild2(tree, start), tabs++);
+
+  return;
+}
+
+void print_tree(int *tree) {
+  for(int i = 0; i < numNodes*7; i+=7){
+	printf("Index = %d\n\t Key[0] = %d \n\t Key[1] = %d \n\t Parent = %d \n\t Child0 = %d \n\t Child1 = %d \n\t Child2 = %d \n\n", tree[i],tree[i+1],tree[i+2],tree[i+3],tree[i+4],tree[i+5],tree[i+6]);
+  }
+}
+
+int main() {
+  int treeSize = 30;
+  int *tree = (int *) malloc( (treeSize*7)*sizeof(int) );
+
+  for(int i = 0; i <treeSize*7; i++)
+	tree[i] = -2;
+  
+  createRoot_arr(tree);
+  for(int i=0; i <14; i++) {
+	insert_arr(tree, 0, i);
+  }
+  
+  /*
+  print_tree(tree);
+  insert_arr(tree, root, 1);
+  print_tree(tree);
+  insert_arr(tree, root, 2);
+  print_tree(tree);
+  insert_arr(tree, root, 3);
+  print_tree(tree);
+  insert_arr(tree, root, 4);
+  print_tree(tree);
+  insert_arr(tree, root, 5);
+  */
+  print_tree_nice(tree,0);
+  printf("\n Num Nodes: %d", numNodes);
+  //for(int i=0; i < numNodes*7; i++)
+  //printf("tree[%d] = %d\n", i, tree[i]);
+  
+}
